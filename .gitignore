@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Build artifacts
+build/
+dist/
+
+# IDE files
+.idea/
+.vscode/
+
+# User-generated files
+config.json
+
+# Vendor executables
+vendor/ffmpeg_mac/ffprobe
+vendor/ffmpeg_mac/ffmpeg
+vendor/ffmpeg_win/ffmpeg.exe
+vendor/ffmpeg_win/ffprobe.exe

@@ -1,0 +1,5 @@
+PySide6==6.6.3.1
+qt-material
+markdown
+beautifulsoup4
+openpyxl
