@@ -29,17 +29,17 @@ class CreationView(QWidget):
                 "text": "打开素材目录",
                 "obj_name": "open_source_btn",
                 "slot": self.controller.open_source_directory,
-                "tooltip": "打开 '01_Source' 文件夹，请将视频和字幕文件放入其中。"
+                "tooltip": "打开 '01_Source' 文件夹，请将SRT字幕文件放入其中。"
             },
             {
                 "text": "开始初始化",
                 "obj_name": "init_btn",
                 "slot": self._on_initialize,
-                "tooltip": "检查并解析素材文件，准备进入下一步。"
+                "tooltip": "解析SRT字幕文件，准备进入下一步。"
             }
         ]
 
-        prompt_text = f"项目已加载\n请将素材放入源目录后开始初始化"
+        prompt_text = f"项目已加载\n请将SRT文件放入源目录后开始初始化"
         self.button_panel = VerticalButtonPanel(self, prompt_text, button_configs)
         self.button_panel.reinitialization_requested.connect(self._on_initialize)
         layout.addWidget(self.button_panel)

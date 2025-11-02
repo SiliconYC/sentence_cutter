@@ -13,7 +13,6 @@ class VideoParser:
     """
     def __init__(self):
         try:
-            # 【核心修改】根据操作系统构建完整的相对路径，再交给 get_resource_path 解析
             if sys.platform == "win32":
                 ffprobe_rel_path = "vendor/ffmpeg_win/ffprobe.exe"
             else:  # macOS 或 Linux
@@ -22,7 +21,7 @@ class VideoParser:
             self.ffprobe_path = get_resource_path(ffprobe_rel_path)
 
         except FileNotFoundError as e:
-            print(f"严重错误: {e}")
+            print(f"[严重错误] {e}")
             self.ffprobe_path = None
 
     def parse(self, video_path):
@@ -52,7 +51,6 @@ class VideoParser:
             if not video_stream:
                 return {}
 
-            # 从分数格式（如 "24000/1001"）计算帧率
             frame_rate_str = video_stream.get('r_frame_rate', '0/1')
             num, den = map(int, frame_rate_str.split('/'))
             frame_rate = round(num / den, 2) if den else 0
@@ -69,21 +67,26 @@ class VideoParser:
             }
 
         except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"错误: 使用 ffprobe 解析视频失败: {e}")
+            print(f"[错误] 使用 ffprobe 解析视频失败: {e}")
             return {}
 
-# --- 测试代码 ---
-if __name__ == '__main__':
-    # 注意: 此测试需要一个有效的视频文件 'test.mp4' 和 ffprobe 在 vendor 目录中。
-    # 创建一个假的 test.mp4 文件用于路径测试
-    with open("test.mp4", "w") as f:
-        f.write("dummy video file")
-        
-    parser = VideoParser()
-    # 正常情况下会失败，因为文件无效，但可以测试命令是否能构建
-    print(f"FFprobe 路径: {parser.ffprobe_path}")
-    metadata = parser.parse("test.mp4")
-    print(metadata)
-    
-    import os
-    os.remove("test.mp4")
+    def get_video_duration(self, video_path: str) -> float:
+        """
+        快速获取视频时长，不解析其他元数据。
+        """
+        if not self.ffprobe_path:
+            raise RuntimeError("ffprobe 可执行文件未找到，无法获取视频时长。")
+
+        command = [
+            self.ffprobe_path,
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            video_path
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8')
+            return float(result.stdout.strip())
+        except (subprocess.CalledProcessError, ValueError, FileNotFoundError) as e:
+            print(f"[错误] 使用 ffprobe 获取视频时长失败: {e}")
+            return 0.0

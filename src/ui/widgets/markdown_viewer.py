@@ -39,7 +39,6 @@ class MarkdownViewer(QDialog):
         """加载并渲染Markdown内容。"""
         if path:
             try:
-                # 【核心修改】使用 get_resource_path 将相对路径转为绝对路径
                 absolute_path = get_resource_path(path)
                 with open(absolute_path, 'r', encoding='utf-8') as f:
                     md_text = f.read()

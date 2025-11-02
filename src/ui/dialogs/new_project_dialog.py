@@ -67,13 +67,11 @@ class NewProjectDialog(QDialog):
         project_name = self.project_name_edit.text().strip()
 
         if not root_dir or not os.path.isdir(root_dir):
-            # 此处应调用弹窗提示
-            print("错误: 请提供一个有效的项目根目录。")
+            print("[错误] 请提供一个有效的项目根目录。")
             return
 
         if not project_name or any(c in r'/\:*?"<>|' for c in project_name):
-            # 此处应调用弹窗提示
-            print("错误: 项目名称不能为空且不能包含非法字符。")
+            print("[错误] 项目名称不能为空且不能包含非法字符。")
             return
             
         self.project_info = {

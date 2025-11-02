@@ -63,43 +63,4 @@ class SrtParser:
                 print(f"警告：解析SRT块时跳过一个格式错误的块: {e}\n块内容: {block}")
                 continue
 
-        # # 归一化处理：确保后一个的开始时间不会与前一个的结束时间完全重合 (已根据需求移除)
-        # for i in range(len(subtitles) - 1):
-        #     current_sub = subtitles[i]
-        #     next_sub = subtitles[i+1]
-        #     if current_sub['end_seconds'] == next_sub['start_seconds']:
-        #         # 将当前字幕的结束时间提前1毫秒
-        #         new_end_seconds = current_sub['end_seconds'] - 0.001
-        #         current_sub['end_seconds'] = new_end_seconds
-        #         current_sub['end'] = self._seconds_to_time(new_end_seconds)
-        #         current_sub['duration'] = round(new_end_seconds - current_sub['start_seconds'], 3)
-
         return subtitles
-
-# --- 测试代码 ---
-if __name__ == '__main__':
-    test_srt_content = """
-1
-00:00:01,500 --> 00:00:04,500
-这是一个
-测试字幕。
-
-2
-00:00:05,000 --> 00:00:08,250
-这是第二条字幕。
-    """
-    test_file = "test.srt"
-    with open(test_file, "w", encoding="utf-8") as f:
-        f.write(test_srt_content.strip())
-    
-    parser = SrtParser()
-    data = parser.parse(test_file)
-    
-    import os
-    import json
-    os.remove(test_file)
-
-    print(json.dumps(data, indent=2, ensure_ascii=False))
-    assert len(data) == 2
-    assert data[1]['index'] == 2
-    assert data[0]['duration'] == 3.0

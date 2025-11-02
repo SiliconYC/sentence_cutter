@@ -36,7 +36,6 @@ class SortingListView(BaseSelectionListView):
     def _on_highlight_change(self, row):
         original_index = self.qt_model.get_original_index(row)
         if original_index != -1:
-            # BUG-FIX: 同步视图内部的选择模型光标，以修复Shift键选择功能
             current_model_index = self.qt_model.index(row, 0)
             self.selectionModel().setCurrentIndex(current_model_index, QItemSelectionModel.NoUpdate)
             self.controller.set_sorting_highlight(self.list_name, original_index)
@@ -72,7 +71,6 @@ class SortingView(QWidget):
         main_layout.addLayout(content_layout, 1)
         main_layout.addWidget(self._create_stats_row())
 
-        # 安装事件过滤器以捕获子列表的键盘事件
         self.available_list_view.installEventFilter(self)
         self.final_list_view.installEventFilter(self)
 
@@ -95,7 +93,6 @@ class SortingView(QWidget):
         layout.addWidget(label)
         layout.addWidget(list_view)
         
-        # 将列表视图保存为属性，方便后续访问
         setattr(self, f"{list_name}_list_view", list_view)
 
         return widget
@@ -195,7 +192,7 @@ class SortingView(QWidget):
         self.on_sorting_data_changed()
         self.controller.refresh_sorting_history_status()
         self.controller.calculate_and_emit_sorting_statistics()
-        print("排序视图状态已重置。")
+        print("[信息] 排序视图状态已重置。")
 
     @Slot()
     def on_sorting_data_changed(self):
@@ -212,7 +209,4 @@ class SortingView(QWidget):
 
     @Slot(bool, bool)
     def on_history_changed(self, can_undo, can_redo):
-        """根据控制器的信号更新撤销/重做按钮的可用状态。"""
-        # self.undo_action.setEnabled(can_undo)
-        # self.redo_action.setEnabled(can_redo)
         pass

@@ -7,6 +7,7 @@ import re
 import bisect
 import time
 import json
+import traceback
 from datetime import timedelta, datetime
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl, Signal, QObject
@@ -15,6 +16,7 @@ from core.media_parser import MediaParser
 from utils.app_config import SOURCE_DIR_NAME, CLIPS_DIR_NAME, OUTPUT_DIR_NAME, INTERMEDIATE_DIR_NAME
 from ui.widgets.message_dialogs import MessageBoxes
 from core.video_processor import VideoProcessor
+from core.video_parser import VideoParser
 
 
 class EditorControllerSignals(QObject):
@@ -40,84 +42,114 @@ class EditorControllerSignals(QObject):
 class SynthesisWorker(QObject):
     finished = Signal(bool, str, str) # success, message, output_dir
 
-    def __init__(self, project_model, parent=None):
+    def __init__(self, project_model, video_paths, parent=None):
         super().__init__(parent)
         self.model = project_model
+        self.video_paths = video_paths
         self.video_processor = VideoProcessor()
+        self.video_parser = VideoParser()
 
     def run(self):
-        print("--- 视频合成后台任务开始 ---")
+        print("\n\n[开始] 视频合成后台任务开始")
         start_time = time.time()
         try:
-            # 1. 准备路径和数据
+            # --- 1. 准备路径和数据 ---
             project_path = self.model.project_path
-            clips_dir = os.path.join(project_path, CLIPS_DIR_NAME)
-            output_dir = os.path.join(project_path, OUTPUT_DIR_NAME)
-            intermediate_dir = os.path.join(project_path, INTERMEDIATE_DIR_NAME)
-            os.makedirs(clips_dir, exist_ok=True)
-            os.makedirs(output_dir, exist_ok=True)
-            os.makedirs(intermediate_dir, exist_ok=True)
-
-            source_video_path = self.model.video_meta['filename']
-            source_video_size = self.model.video_meta['size']
-            manifest_path = os.path.join(intermediate_dir, "clip_manifest.json")
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            clips_root_dir = os.path.join(project_path, CLIPS_DIR_NAME)
+            output_root_dir = os.path.join(project_path, OUTPUT_DIR_NAME)
+            os.makedirs(clips_root_dir, exist_ok=True)
+            os.makedirs(output_root_dir, exist_ok=True)
             
-            # 2. 时间预处理
-            print("步骤 1/4: 预处理字幕时间...")
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            synthesis_output_dir = os.path.join(output_root_dir, timestamp)
+            os.makedirs(synthesis_output_dir, exist_ok=True)
+
+            srt_total_duration = self.model.srt_meta.get('total_duration', 0)
+            if srt_total_duration == 0:
+                raise ValueError("无法获取SRT字幕总时长，无法继续。")
+
+            # --- 2. 校验所有输入视频 ---
+            print("[步骤 1/5] 校验输入视频...")
+            valid_videos_meta = []
+            for video_path in self.video_paths:
+                duration = self.video_parser.get_video_duration(video_path)
+                if duration < srt_total_duration:
+                    msg = f"视频 '{os.path.basename(video_path)}' (时长: {duration:.2f}s) 短于字幕总时长 ({srt_total_duration:.2f}s)，已跳过。"
+                    print(f"[警告] {msg}")
+                    continue
+                
+                meta = self.video_parser.parse(video_path)
+                if meta:
+                    valid_videos_meta.append(meta)
+            
+            if not valid_videos_meta:
+                raise RuntimeError("所有提供的视频素材都不合格（时长不足），合成中止。")
+
+            # --- 3. 预处理时间和筛选最终序列数据 ---
+            print("[步骤 2/5] 预处理字幕时间...")
             preprocessed_srt = self.video_processor.preprocess_srt_times(
                 self.model.subtitle_data,
-                self.model.video_meta['duration']
+                srt_total_duration
             )
-
-            # 3. 筛选最终序列数据
             final_sequence_indices = self.model.final_sequence
             final_sequence_data = [preprocessed_srt[i] for i in final_sequence_indices]
-            
-            # 4. 剪切并保存片段 (使用JSON清单)
-            print("步骤 2/4: 剪切并保存视频片段...")
-            clip_paths = self.video_processor.cut_and_save_clips(
-                source_video_path,
-                source_video_size,
-                final_sequence_data,
-                clips_dir,
-                manifest_path
-            )
-            
-            if not clip_paths or len(clip_paths) != len(final_sequence_data):
-                 raise RuntimeError(f"片段生成失败或数量不匹配。预期 {len(final_sequence_data)} 个, 实际 {len(clip_paths)} 个。")
-            
-            # 5. 拼接视频
-            print("步骤 3/4: 拼接最终视频...")
-            output_video_path = os.path.join(output_dir, f"{timestamp}_output.mp4")
-            self.video_processor.concatenate_clips(clip_paths, output_video_path)
+
+            # --- 4. 循环处理每个合格的视频 ---
+            for video_meta in valid_videos_meta:
+                source_video_path = video_meta['filename']
+                source_video_basename = os.path.basename(source_video_path)
+                print(f"\n--- [开始处理] '{source_video_basename}' ---")
+
+                # 为每个视频创建独立的缓存子目录
+                clips_dir = os.path.join(clips_root_dir, source_video_basename)
+                os.makedirs(clips_dir, exist_ok=True)
+                manifest_path = os.path.join(clips_dir, "clip_manifest.json")
+
+                # 剪切片段
+                print(f"[步骤 3/5] 正在为 '{source_video_basename}' 剪切片段...")
+                clip_paths = self.video_processor.cut_and_save_clips(
+                    source_video_path,
+                    video_meta['size'],
+                    final_sequence_data,
+                    clips_dir,
+                    manifest_path
+                )
+                
+                if not clip_paths or len(clip_paths) != len(final_sequence_data):
+                     raise RuntimeError(f"为 '{source_video_basename}' 生成片段失败或数量不匹配。")
+                
+                # 拼接视频
+                print(f"[步骤 4/5] 正在为 '{source_video_basename}' 拼接最终视频...")
+                output_video_name = f"{os.path.splitext(source_video_basename)[0]}_output.mp4"
+                output_video_path = os.path.join(synthesis_output_dir, output_video_name)
+                self.video_processor.concatenate_clips(clip_paths, output_video_path)
+                print(f"--- [完成处理] '{source_video_basename}' ---")
             
             total_duration = time.time() - start_time
-            print(f"视频处理完成, 总耗时: {total_duration:.2f} 秒。")
+            print(f"\n[信息] 所有视频处理完成, 总耗时: {total_duration:.2f} 秒。")
 
-            # 6. 创建 Excel 映射表
-            print("步骤 4/4: 创建 Excel 映射表...")
-            excel_path = os.path.join(output_dir, f"{timestamp}_精剪参考表.xlsx")
+            # --- 5. 创建 Excel 映射表 ---
+            print("[步骤 5/5] 创建 Excel 映射表...")
+            excel_path = os.path.join(synthesis_output_dir, f"{timestamp}_精剪参考表.xlsx")
             original_sequence_data = [self.model.subtitle_data[i] for i in final_sequence_indices]
             
             self.video_processor.create_mapping_excel(
-                self.model.video_meta,
+                valid_videos_meta,
                 final_sequence_data,
                 original_sequence_data,
                 excel_path,
-                output_video_path,
+                synthesis_output_dir,
                 total_duration
             )
             
-            print("所有任务完成。")
-            self.finished.emit(True, f"视频已成功导出。", output_dir)
+            print("[完成] 所有任务完成。")
+            self.finished.emit(True, f"视频已成功导出至新文件夹。", synthesis_output_dir)
             
         except Exception as e:
-            import traceback
             error_details = traceback.format_exc()
-            print(f"合成失败: {e}\n{error_details}")
+            print(f"[错误] 合成失败: {e}\n{error_details}")
             self.finished.emit(False, str(e), "")
-        print("--- 视频合成后台任务结束 ---")
+        print("[结束] 视频合成后台任务结束")
 
 
 class EditorController:
@@ -176,9 +208,9 @@ class EditorController:
             if os.path.exists(state_path):
                 try:
                     os.remove(state_path)
-                    print(f"因重新初始化，已删除旧的项目状态文件: {state_path}")
+                    print(f"[信息] 因重新初始化，已删除旧的项目状态文件: {state_path}")
                 except OSError as e:
-                    print(f"警告: 无法删除旧的项目状态文件: {e}")
+                    print(f"[警告] 无法删除旧的项目状态文件: {e}")
 
             return True, "项目初始化成功！"
         except Exception as e:
@@ -315,9 +347,12 @@ class EditorController:
                 "warning"
             )
             return -1
-        if target_sec > self.model.video_meta.get('duration', float('inf')):
-            MessageBoxes.show_message(self.main_window, "超出范围", "输入的时间超出了视频总时长。", "info")
+            
+        srt_duration = self.model.srt_meta.get('total_duration', float('inf'))
+        if target_sec > srt_duration:
+            MessageBoxes.show_message(self.main_window, "超出范围", "输入的时间超出了字幕总时长。", "info")
             return len(self.model.subtitle_data) - 1
+            
         start_times = [item['start_seconds'] for item in self.model.subtitle_data]
         pos = bisect.bisect_right(start_times, target_sec) - 1
         if pos >= 0 and self.model.subtitle_data[pos]['start_seconds'] <= target_sec <= self.model.subtitle_data[pos]['end_seconds']:
@@ -600,5 +635,5 @@ class EditorController:
         self._emit_sorting_history_change()
         
     # --- 视频合成方法 ---
-    def create_synthesis_worker(self):
-        return SynthesisWorker(self.model)
+    def create_synthesis_worker(self, video_paths):
+        return SynthesisWorker(self.model, video_paths)

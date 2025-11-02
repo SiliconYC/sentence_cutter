@@ -83,19 +83,16 @@ class IconToolbarFactory:
             
             text, icon_filename, slot = config
             
-            # 【核心修改】将路径解析和占位符逻辑完全封装在此处
             absolute_icon_path = ""
             try:
                 relative_path = os.path.join(self.DEFAULT_ICON_DIR, icon_filename).replace('\\', '/')
                 absolute_icon_path = get_resource_path(relative_path)
             except FileNotFoundError:
-                print(f"警告: 找不到工具栏图标 '{relative_path}', 将使用占位符。")
+                print(f"[警告] 找不到工具栏图标 '{relative_path}', 将使用占位符。")
                 try:
-                    # 如果找不到图标，则尝试加载占位符图标
                     absolute_icon_path = get_resource_path(IconButton.PLACEHOLDER_ICON)
                 except FileNotFoundError:
-                    # 如果连占位符都找不到，则路径为空，按钮将不显示图片
-                    print(f"严重警告: 连占位符图标都找不到: '{IconButton.PLACEHOLDER_ICON}'")
+                    print(f"[严重警告] 连占位符图标都找不到: '{IconButton.PLACEHOLDER_ICON}'")
 
             button = IconButton(text, absolute_icon_path, self.icon_size, self.orientation)
             if callable(slot):

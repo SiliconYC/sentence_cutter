@@ -36,12 +36,10 @@ class ConfigManager:
         app_name = "sentence_cutter"
         
         if sys.platform == "win32":
-            # APPDATA 是一个环境变量
             base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
         elif sys.platform == "darwin": # macOS
             base_dir = Path.home() / "Library" / "Application Support"
         else: # Linux and other Unix-like
-            # XDG_CONFIG_HOME 是标准, 降级方案是 ~/.config
             base_dir = Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config"))
             
         return base_dir / app_name
@@ -82,55 +80,3 @@ class ConfigManager:
                 json.dump(current_config, f, indent=4, ensure_ascii=False)
         except IOError as e:
             print(f"[错误] 无法写入配置文件 '{self.config_path}': {e}")
-
-
-# ------------------- 测试代码 -------------------
-if __name__ == "__main__":
-    print("--- 配置管理器测试 ---")
-    
-    # 1. 初始化，会自动创建目录
-    # 注意：这里的 'test_config.json' 是为了避免覆盖真实配置
-    test_manager = ConfigManager(filename="test_config.json") 
-    print(f"配置文件路径: {test_manager.config_path}")
-    print(f"路径是否存在: {test_manager.config_path.parent.exists()}")
-
-    # 2. 初始加载 (文件应该还不存在)
-    print("\n[测试] 初始加载...")
-    config = test_manager.load_config()
-    print(f"加载到的初始配置: {config}")
-    assert config == {}
-
-    # 3. 更新配置
-    print("\n[测试] 更新配置...")
-    test_manager.update_config({
-        "last_project_root_dir": "D:/Projects",
-        "theme": "dark_teal.xml"
-    })
-    print("已写入: {'last_project_root_dir': 'D:/Projects', 'theme': 'dark_teal.xml'}")
-
-    # 4. 再次加载以验证
-    config = test_manager.load_config()
-    print(f"再次加载的配置: {config}")
-    assert config["last_project_root_dir"] == "D:/Projects"
-
-    # 5. 更新部分配置
-    print("\n[测试] 更新部分配置...")
-    test_manager.update_config({
-        "theme": "light_blue.xml",
-        "recent_projects": ["D:/Projects/Project_A"]
-    })
-    print("已写入: {'theme': 'light_blue.xml', 'recent_projects': ['D:/Projects/Project_A']}")
-
-    # 6. 再次加载以验证合并效果
-    config = test_manager.load_config()
-    print(f"最终加载的配置: {config}")
-    assert config["last_project_root_dir"] == "D:/Projects"
-    assert config["theme"] == "light_blue.xml"
-    assert len(config["recent_projects"]) == 1
-    
-    # 7. 清理测试文件
-    if test_manager.config_path.exists():
-        os.remove(test_manager.config_path)
-        print(f"\n测试文件 '{test_manager.config_path}' 已删除。")
-
-    print("\n--- 测试完成 ---")

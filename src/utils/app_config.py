@@ -14,8 +14,6 @@ CONFIG_FILENAME = "sentence_cutter_config.json"
 IS_MACOS = sys.platform == 'darwin'
 
 # --- 资源路径 ---
-# 将所有资源路径定义为简单的、从项目根目录算起的相对路径字符串。
-# 具体的绝对路径转换工作，交由 get_resource_path 函数在运行时动态完成。
 ICON_PATH = "assets/icons/paper-cut.png"
 
 # --- 项目结构 ---

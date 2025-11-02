@@ -11,7 +11,6 @@ from ui.views.welcome_view import WelcomeView
 from ui.views.editor_view import EditorView
 from ui.widgets.markdown_viewer import MarkdownViewer
 from utils.app_config import APP_NAME, ICON_PATH
-# 【核心修改 1】 导入我们强大的资源路径定位工具
 from utils.resource_path import get_resource_path
 
 class MainWindow(QMainWindow):
@@ -19,13 +18,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         
-        # 【核心修改 2】 使用 get_resource_path 动态获取图标的正确路径
         try:
-            # ICON_PATH 现在是 "assets/icons/paper-cut.png"
             absolute_icon_path = get_resource_path(ICON_PATH)
             self.setWindowIcon(QIcon(absolute_icon_path))
         except FileNotFoundError:
-            print(f"警告: 无法找到应用程序图标: {ICON_PATH}")
+            print(f"[警告] 无法找到应用程序图标: {ICON_PATH}")
 
         self.setGeometry(100, 100, 1280, 720)
 
@@ -79,7 +76,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent):
         """重写关闭事件，以实现自动保存。"""
-        print("主窗口关闭事件触发，正在静默保存项目...")
+        print("\n\n[信息] 主窗口关闭事件触发，正在静默保存项目...")
         self.project_controller.save_project(show_notification=False)
         event.accept()
 
@@ -91,13 +88,11 @@ class MainWindow(QMainWindow):
         self.reset_action.setEnabled(False)
 
     def show_editor_view(self):
-        # 移除旧的编辑器视图（如果存在）以确保每次都加载新实例
         old_editor = self.findChild(EditorView)
         if old_editor:
             self.stacked_widget.removeWidget(old_editor)
             old_editor.deleteLater()
             
-        # 【BUG修复】在创建 EditorView 时，将 self (MainWindow) 作为父对象传入
         editor_view = EditorView(self.editor_controller, self.model.project_path, parent=self)
         self.stacked_widget.addWidget(editor_view)
         self.stacked_widget.setCurrentWidget(editor_view)

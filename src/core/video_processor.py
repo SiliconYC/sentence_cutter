@@ -17,7 +17,6 @@ from core.srt_parser import SrtParser
 class VideoProcessor:
     def __init__(self):
         try:
-            # 【核心修改】根据操作系统构建完整的相对路径，再交给 get_resource_path 解析
             if sys.platform == "win32":
                 ffmpeg_rel_path = "vendor/ffmpeg_win/ffmpeg.exe"
                 ffprobe_rel_path = "vendor/ffmpeg_win/ffprobe.exe"
@@ -29,7 +28,7 @@ class VideoProcessor:
             self.ffprobe_path = get_resource_path(ffprobe_rel_path)
 
         except FileNotFoundError as e:
-            print(f"严重错误: 无法找到 ffmpeg/ffprobe: {e}")
+            print(f"[严重错误] 无法找到 ffmpeg/ffprobe: {e}")
             self.ffmpeg_path = None
             self.ffprobe_path = None
         
@@ -44,7 +43,7 @@ class VideoProcessor:
                         return {}
                     return json.loads(content)
             except (json.JSONDecodeError, IOError) as e:
-                print(f"警告: 加载或解析清单文件失败: {e}")
+                print(f"[警告] 加载或解析清单文件失败: {e}")
                 return {}
         return {}
 
@@ -53,7 +52,7 @@ class VideoProcessor:
             with open(manifest_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
         except IOError as e:
-            print(f"错误: 写入清单文件失败: {e}")
+            print(f"[错误] 写入清单文件失败: {e}")
 
     def _seconds_to_hmsm(self, seconds):
         td = timedelta(seconds=seconds)
@@ -64,10 +63,8 @@ class VideoProcessor:
 
     def _seconds_to_hms(self, seconds):
         """将秒数格式化为 HH:MM:SS，不含毫秒。"""
-        td = timedelta(seconds=seconds)
-        total_minutes, sec = divmod(td.seconds, 60)
-        hrs, mins = divmod(total_minutes, 60)
-        return f"{hrs:02d}:{mins:02d}:{sec:02d}"
+        td = timedelta(seconds=int(seconds))
+        return str(td)
 
     def _seconds_to_filename_time(self, seconds):
         td = timedelta(seconds=seconds)
@@ -124,19 +121,17 @@ class VideoProcessor:
             clip_filepath = os.path.join(clips_dir, clip_filename)
 
             source_basename_for_comp = os.path.basename(source_video_path)
-            source_size_for_comp = str(source_video_size)
             
-            # 使用 JSON 清单进行校验
             if os.path.exists(clip_filepath):
                 manifest_entry = manifest_data.get(clip_filename)
-                if manifest_entry:
-                    entry_name = manifest_entry.get('original_filename')
-                    entry_size = str(manifest_entry.get('original_filesize'))
-                    if entry_name == source_basename_for_comp and entry_size == source_size_for_comp:
-                        clip_paths.append(clip_filepath)
-                        continue
+                if manifest_entry and \
+                   manifest_entry.get('original_filename') == source_basename_for_comp and \
+                   str(manifest_entry.get('original_filesize')) == str(source_video_size):
+                    clip_paths.append(clip_filepath)
+                    continue
             
-            # 构造 ffmpeg 命令
+            # [修改] 移除了 '-c', 'copy' 参数，强制 ffmpeg 进行重新编码，以确保剪辑点的精确性。
+            # 这会比流复制慢，但解决了剪辑不准的问题。
             command = [
                 self.ffmpeg_path, '-ss', str(start_sec), '-i', source_video_path,
                 '-t', str(duration_sec), '-map', '0', '-y', clip_filepath
@@ -145,13 +140,12 @@ class VideoProcessor:
             try:
                 subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='ignore')
                 clip_paths.append(clip_filepath)
-                # 更新清单字典
                 manifest_data[clip_filename] = {
                     "original_filename": source_basename_for_comp,
-                    "original_filesize": source_size_for_comp
+                    "original_filesize": source_video_size
                 }
             except subprocess.CalledProcessError as e:
-                print(f"错误: FFmpeg剪切片段失败: {clip_filename}\n{e.stderr}")
+                print(f"[错误] FFmpeg剪切片段失败: {clip_filename}\n{e.stderr}")
                 continue
 
         self._save_clip_manifest(manifest_path, manifest_data)
@@ -182,35 +176,41 @@ class VideoProcessor:
             if os.path.exists(list_filepath):
                 os.remove(list_filepath)
         
-    def create_mapping_excel(self, source_video_meta, final_sequence_data, original_sequence_data, excel_path, output_video_path, total_synthesis_duration):
+    def create_mapping_excel(self, source_video_metas, final_sequence_data, original_sequence_data, excel_path, output_dir, total_synthesis_duration):
         wb = openpyxl.Workbook()
         ws1 = wb.active
         ws1.title = "元数据"
         
         ws1.append(["原始视频信息", ""])
-        ws1.append(["文件名", os.path.basename(source_video_meta.get('filename', 'N/A'))])
-        ws1.append(["大小 (字节)", source_video_meta.get('size')])
-        ws1.append(["时长 (秒)", source_video_meta.get('duration')])
-        ws1.append(["尺寸", f"{source_video_meta.get('width')}x{source_video_meta.get('height')}"])
-        ws1.append(["帧率", source_video_meta.get('frame_rate')])
-        ws1.append(["视频编码", source_video_meta.get('codec_name')])
-        ws1.append(["音频编码", source_video_meta.get('audio_codec_name')])
-        ws1.append(["", ""])
+        ws1.cell(row=1, column=2).font = openpyxl.styles.Font(bold=True)
+        for meta in source_video_metas:
+            ws1.append(["文件名", os.path.basename(meta.get('filename', 'N/A'))])
+            ws1.append(["大小 (字节)", meta.get('size')])
+            ws1.append(["时长 (秒)", meta.get('duration')])
+            ws1.append(["尺寸", f"{meta.get('width')}x{meta.get('height')}"])
+            ws1.append(["帧率", meta.get('frame_rate')])
+            ws1.append(["视频编码", meta.get('codec_name')])
+            ws1.append(["音频编码", meta.get('audio_codec_name')])
+            ws1.append(["-"*20, "-"*40])
         
+        output_video_paths = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.lower().endswith('.mp4')]
         output_duration = 0
-        try:
-            probe_cmd = [self.ffprobe_path, '-v', 'quiet', '-print_format', 'json', '-show_format', output_video_path]
-            result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True, encoding='utf-8', errors='ignore')
-            output_meta = json.loads(result.stdout)
-            output_duration = float(output_meta['format']['duration'])
-        except Exception as e:
-            print(f"警告: 无法获取输出视频时长: {e}")
+        if output_video_paths:
+            try:
+                # 只探测第一个输出视频的时长作为代表
+                probe_cmd = [self.ffprobe_path, '-v', 'quiet', '-print_format', 'json', '-show_format', output_video_paths[0]]
+                result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True, encoding='utf-8', errors='ignore')
+                output_meta = json.loads(result.stdout)
+                output_duration = float(output_meta['format']['duration'])
+            except Exception as e:
+                print(f"[警告] 无法获取输出视频时长: {e}")
             
         total_dialogue_duration = sum(item['duration'] for item in original_sequence_data)
         total_dialogue_chars = sum(len(item['text']) for item in original_sequence_data)
         
         ws1.append(["合成任务信息", ""])
-        ws1.append(["输出文件名", os.path.basename(output_video_path)])
+        ws1.cell(row=ws1.max_row, column=2).font = openpyxl.styles.Font(bold=True)
+        ws1.append(["输出文件夹", os.path.basename(output_dir)])
         ws1.append(["总耗时 (秒)", f"{total_synthesis_duration:.2f}"])
         ws1.append(["采用片段数", len(final_sequence_data)])
         ws1.append(["输出总时长 (秒)", output_duration])
@@ -228,8 +228,10 @@ class VideoProcessor:
             cumulative_duration += duration
             
         ws2 = wb.create_sheet("原始->粗剪")
-        ws2.append(["原始视频时间点 (秒)", "粗剪影片时间点 (HH:MM:SS.ms)"])
-        source_duration_int = int(source_video_meta.get('duration', 0))
+        ws2.append(["原始视频时间点 (HH:MM:SS)", "粗剪影片时间点 (HH:MM:SS.ms)"])
+        # 使用字幕总时长作为循环上限
+        source_duration_int = int(source_video_metas[0].get('duration', 0)) if source_video_metas else 0
+
         for t_orig in range(source_duration_int + 1):
             mapped_time = "Null"
             for seg in segments:
@@ -240,7 +242,7 @@ class VideoProcessor:
             ws2.append([self._seconds_to_hms(t_orig), mapped_time])
 
         ws3 = wb.create_sheet("粗剪->原始")
-        ws3.append(["粗剪影片时间点 (秒)", "原始视频时间点 (HH:MM:SS.ms)"])
+        ws3.append(["粗剪影片时间点 (HH:MM:SS)", "原始视频时间点 (HH:MM:SS.ms)"])
         output_duration_int = int(output_duration)
         for t_out in range(output_duration_int + 1):
             mapped_time = "Error"
@@ -261,7 +263,7 @@ class VideoProcessor:
                 for cell in col:
                     try:
                         if len(str(cell.value)) > max_length:
-                            max_length = len(cell.value)
+                            max_length = len(str(cell.value))
                     except: pass
                 adjusted_width = (max_length + 2)
                 ws.column_dimensions[column].width = adjusted_width

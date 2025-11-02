@@ -59,7 +59,6 @@ class BaseSelectionListView(QListView):
         if event.button() == Qt.MouseButton.LeftButton: self._is_left_mouse_pressed = True
         elif event.button() == Qt.MouseButton.RightButton: self._is_right_mouse_pressed = True
         
-        # 单击时立即更新高亮
         self.highlight_change_requested.emit(index_obj.row())
         self._last_highlighted_row = index_obj.row()
 
@@ -74,8 +73,6 @@ class BaseSelectionListView(QListView):
             mode = self._is_left_mouse_pressed
             if self.model() and hasattr(self.model(), 'set_temp_selection_range'):
                 self.model().set_temp_selection_range(self._drag_start_index, end_index, mode)
-            # BUG-FIX: 不在拖动时触发高亮信号，只在按下和释放时触发
-            # self.highlight_change_requested.emit(end_index) 
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -159,12 +156,10 @@ class SelectionView(QWidget):
         self.time_search_input = QLineEdit(placeholderText="例如: 01:00:04.200", fixedWidth=180)
         layout.addWidget(self.time_search_input)
         layout.addStretch()
-        # --- 新增按钮 ---
         self.select_all_btn = QPushButton("全选")
         layout.addWidget(self.select_all_btn)
         self.clear_all_btn = QPushButton("清空")
         layout.addWidget(self.clear_all_btn)
-        # ---
         layout.addWidget(QLabel("关键词搜索:"))
         self.text_search_input = QLineEdit(placeholderText="按Enter搜索正文...")
         self.search_status_label = QLabel("0/0")
@@ -210,7 +205,6 @@ class SelectionView(QWidget):
         self.controller.signals.highlight_changed.connect(self.on_highlight_changed_from_controller)
         self.controller.signals.statistics_updated.connect(self.on_update_stats)
         self.controller.signals.search_results_updated.connect(self.on_update_search_results)
-        # --- 新增信号连接 ---
         self.select_all_btn.clicked.connect(self.on_select_all_clicked)
         self.clear_all_btn.clicked.connect(self.on_clear_all_clicked)
 
@@ -230,7 +224,7 @@ class SelectionView(QWidget):
         self.list_view.scrollToTop()
         if self.list_model.rowCount() > 0:
             self.on_highlight_change(0)
-        print("筛选视图状态已重置 (已滚动到顶部并高亮首项)。")
+        print("[信息] 筛选视图状态已重置 (已滚动到顶部并高亮首项)。")
 
     def jump_to_index(self, index: int):
         if 0 <= index < self.list_model.rowCount():
@@ -240,7 +234,6 @@ class SelectionView(QWidget):
     @Slot(int, int, bool)
     def on_range_selection(self, start_row, end_row, select_state):
         self.controller.update_selection(start_row, end_row, select_state)
-        # BUG-FIX: 在选择操作完成后记录历史
         self.controller.record_history_state(end_row)
 
     @Slot(int)
@@ -248,8 +241,6 @@ class SelectionView(QWidget):
         if self.list_model.highlighted_index != row:
             self.list_model.set_highlighted_index(row)
             self.list_view.selectionModel().setCurrentIndex(self.list_model.index(row, 0), QItemSelectionModel.NoUpdate)
-            # BUG-FIX: 不在此处记录历史，仅在实际选择操作完成后记录
-            # self.controller.record_history_state(row)
 
     @Slot()
     def on_jump_to_highlighted(self):
@@ -305,8 +296,6 @@ class SelectionView(QWidget):
         
     @Slot(bool, bool)
     def on_history_changed(self, can_undo, can_redo):
-        # self.undo_action.setEnabled(can_undo)
-        # self.redo_action.setEnabled(can_redo)
         pass
         
     @Slot(int)

@@ -13,21 +13,17 @@ class IconButton(QPushButton):
     一个专门用于图标工具栏的按钮，支持图标和文本，以及两种显示模式（水平/垂直）。
     它只负责显示，不负责解析或验证路径。
     """
-    # 【核心修改 1】占位符图标路径也改为标准的相对路径
     PLACEHOLDER_ICON = "assets/icons/toolbar/placeholder.png"
 
     def __init__(self, text, icon_path, icon_size, mode="horizontal"):
         super().__init__()
         self.button_text = text
-        # 【核心修改 2】直接使用传入的路径，不再进行验证
         self.icon_path = icon_path
         self.icon_size = icon_size
         self.mode = mode
         
         self._setup_styles()
         self._init_ui()
-
-    # 【核心修改 3】移除 _validate_icon_path 方法，路径验证逻辑上移到 Factory 中
 
     def _setup_styles(self):
         self.text_color_normal = QColor("#b2bec3")
@@ -76,10 +72,8 @@ class IconButton(QPushButton):
 
     def _create_icon_label(self, scale_ratio):
         label = QLabel(self)
-        # self.icon_path 此处应该已经是绝对路径
         pixmap = QPixmap(self.icon_path)
         if pixmap.isNull():
-            # 只有在绝对路径加载失败时才打印警告
             if self.icon_path:
                 print(f"[警告] 无法加载图标: {self.icon_path}")
         else:

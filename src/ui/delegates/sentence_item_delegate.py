@@ -95,7 +95,6 @@ class SentenceItemDelegate(QStyledItemDelegate):
         painter.save()
         painter.setFont(self.font_main)
         
-        # 如果存在搜索高亮范围，则必须使用富文本路径（QTextDocument）
         if ranges:
             doc = QTextDocument()
             doc.setDefaultFont(painter.font())
@@ -116,28 +115,15 @@ class SentenceItemDelegate(QStyledItemDelegate):
             full_html = f"<div style='color: {self.color_text_main.name()};'>{html_body}</div>"
             doc.setHtml(full_html)
 
-            # 垂直居中
             painter.translate(rect.left(), rect.top() + (rect.height() - doc.size().height()) / 2)
             doc.drawContents(painter)
             
-        # 对于无高亮的普通文本，使用 QFontMetrics 和 painter.drawText 高效处理
         else:
             single_line_text = text.replace('\n', ' ')
             painter.setPen(self.color_text_main)
-
-            # --- 修改开始 ---
-            # 1. 获取当前字体的 FontMetrics
             fm = QFontMetrics(painter.font())
-
-            # 2. 使用 elidedText 方法获取带省略号的文本
-            #    它会根据矩形宽度 rect.width() 自动判断是否需要以及在哪里添加 "..."
             elided_text = fm.elidedText(single_line_text, Qt.TextElideMode.ElideRight, rect.width())
-            
-            # 3. 设置对齐方式，不再需要省略号标志
             flags = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
-            
-            # 4. 绘制已经处理好的带省略号的文本
             painter.drawText(rect, flags, elided_text)
-            # --- 修改结束 ---
 
         painter.restore()

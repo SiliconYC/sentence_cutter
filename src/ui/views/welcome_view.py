@@ -58,12 +58,9 @@ class WelcomeView(QWidget):
         button = QPushButton(text)
         button.setObjectName("welcomeButton") # 关键：设置对象名
 
-        # 关键：手动设置鼠标悬停光标为手形
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         
         button.setFixedSize(300, 100)
-        # 按钮的具体颜色样式仍然在这里设置，因为它们是实例相关的，
-        # 而字体等通用样式由全局QSS控制。
         button.setStyleSheet(f"""
             QPushButton#welcomeButton {{
                 background-color: {normal_color};

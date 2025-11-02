@@ -33,7 +33,6 @@ class VerticalButtonPanel(QWidget):
         self.init_button = None
         self.warning_label = None
 
-        # 预设的扁平化UI颜色对 (常规色, 悬停色)
         self.color_pairs = [
             ("#27ae60", "#2ecc71"),  # Green
             ("#2980b9", "#3498db"),  # Blue
@@ -69,12 +68,10 @@ class VerticalButtonPanel(QWidget):
             }
         """)
 
-        # 主布局
         main_layout = QVBoxLayout(self)
         main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.setContentsMargins(30, 30, 30, 30)
 
-        # 提示标签
         prompt_label = QLabel(self.prompt_text)
         prompt_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         prompt_label.setFont(QFont("Arial", 24))
@@ -82,7 +79,6 @@ class VerticalButtonPanel(QWidget):
         main_layout.addWidget(prompt_label)
         main_layout.addSpacing(40)
 
-        # 按钮布局
         button_layout = QVBoxLayout()
         button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         button_layout.setSpacing(self.button_spacing)
@@ -118,17 +114,14 @@ class VerticalButtonPanel(QWidget):
             setattr(self, config["obj_name"], button)
             button_layout.addWidget(button)
 
-            # 存储初始化按钮的引用
             if config["obj_name"] == "init_btn":
                 self.init_button = button
 
-        # 创建并添加警告标签
         self.warning_label = QLabel()
         self.warning_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.warning_label.setTextFormat(Qt.TextFormat.RichText)
         self.warning_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.warning_label.setOpenExternalLinks(False)
-        # 【样式修复】为 <a> 标签添加 text-decoration: none !important; 来强制移除虚线
         self.warning_label.setText(
             '<div style="color: #9e9e9e; font-size: 13px;">'
             '点击<a href="reinitialize" style="color: #e67e22; text-decoration: none !important;">此处可重新初始化</a>，请谨慎操作。<br>'
@@ -136,7 +129,7 @@ class VerticalButtonPanel(QWidget):
             '</div>'
         )
         self.warning_label.linkActivated.connect(self._on_reinitialize_link_activated)
-        self.warning_label.setVisible(False) # 默认隐藏
+        self.warning_label.setVisible(False)
         button_layout.addWidget(self.warning_label)
 
 

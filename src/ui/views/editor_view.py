@@ -1,7 +1,8 @@
 # path: src/ui/views/editor_view.py
 
+import os
 import time
-from PySide6.QtWidgets import QWidget, QStackedWidget, QVBoxLayout, QPushButton
+from PySide6.QtWidgets import QWidget, QStackedWidget, QVBoxLayout, QPushButton, QFileDialog
 from PySide6.QtCore import QThread, QUrl
 from PySide6.QtGui import QDesktopServices
 from .creation_view import CreationView
@@ -27,7 +28,6 @@ class EditorView(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # 创建并添加顶部工具栏
         self.toolbar = self._create_toolbar()
         main_layout.addWidget(self.toolbar)
 
@@ -51,7 +51,6 @@ class EditorView(QWidget):
 
     def _create_toolbar(self):
         """创建并配置顶部图标工具栏。"""
-        # 从 MainWindow 获取 project_controller
         project_controller = self.parent().project_controller
         
         toolbar_configs = [
@@ -66,7 +65,6 @@ class EditorView(QWidget):
         factory = IconToolbarFactory(toolbar_configs, icon_size=60, orientation="horizontal")
         toolbar_widget = factory.create()
 
-        # 保存对撤销/重做按钮的引用以便控制状态
         self.undo_button = factory.buttons.get("撤销")
         self.redo_button = factory.buttons.get("重做")
 
@@ -87,8 +85,6 @@ class EditorView(QWidget):
         self.creation_view.ready_for_next.connect(self.nav_bar.set_next_enabled)
         self.selection_view.ready_for_next.connect(self.nav_bar.set_next_enabled)
         self.creation_view.initialization_completed.connect(self.on_initialization_completed)
-
-        # 连接历史记录状态信号到按钮更新槽
         self.controller.signals.history_changed.connect(self._update_history_buttons)
         self.controller.signals.sorting_history_changed.connect(self._update_history_buttons)
 
@@ -148,7 +144,6 @@ class EditorView(QWidget):
         if hasattr(current_view, 'enter_view'):
             current_view.enter_view()
         
-        # 更新撤销/重做按钮的状态
         if current_view == self.creation_view:
             self._update_history_buttons(False, False)
         elif current_view == self.selection_view:
@@ -156,7 +151,6 @@ class EditorView(QWidget):
         elif current_view == self.sorting_view:
             self.controller.refresh_sorting_history_status()
 
-        # 修复：当从已加载项目进入时，第一页的“下一步”按钮应正确启用
         is_creation_view = (current_view == self.creation_view)
         if is_creation_view and self.model.is_initialized:
             self.nav_bar.set_next_enabled(True)
@@ -167,9 +161,20 @@ class EditorView(QWidget):
         if not self.model.final_sequence:
             MessageBoxes.show_message(self, "无法合成", "最终序列为空，无法合成视频。\n请先从左侧列表中添加句子到右侧。", "warning")
             return
+        
+        source_dir = os.path.join(self.project_path, "01_Source")
+        video_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "请选择一个或多个视频素材文件",
+            source_dir,
+            "视频文件 (*.mp4)"
+        )
+
+        if not video_paths:
+            return
 
         self.synthesis_thread = QThread()
-        self.synthesis_worker = self.controller.create_synthesis_worker()
+        self.synthesis_worker = self.controller.create_synthesis_worker(video_paths)
         self.synthesis_worker.moveToThread(self.synthesis_thread)
         
         self.synthesis_thread.started.connect(self.synthesis_worker.run)
