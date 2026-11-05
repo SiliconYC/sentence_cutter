@@ -23,3 +23,4 @@ vendor/ffmpeg_mac/ffprobe
 vendor/ffmpeg_mac/ffmpeg
 vendor/ffmpeg_win/ffmpeg.exe
 vendor/ffmpeg_win/ffprobe.exe
+/本地测试留痕/
